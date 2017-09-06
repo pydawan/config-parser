@@ -35,7 +35,8 @@ public class ConfigParserTest {
       cfg.sections().forEach(System.out::println);
       cfg.options("dev").forEach(System.out::println);
       System.out.println(cfg.hasOption("dev", "db.engine"));
-      cfg.set("francis", "nome", "Francisco Modesto Gomes");
+      cfg.set("thiago-amm", "nome", "Thiago Alexandre Martins Monteiro");
+      cfg.set("pydawan", "thiago-amm");
       cfg.write();
       Object francisNome = cfg.get("francis", "nome");
       System.out.println(francisNome);
