@@ -1,6 +1,7 @@
 package br.org.configparser;
 
 import static br.org.verify.Verify.isEmptyOrNull;
+import static br.org.verify.Verify.isNotNullOrEmpty;
 import static br.org.verify.Verify.isNull;
 
 import java.io.BufferedReader;
@@ -30,6 +31,7 @@ import java.util.Set;
  * 
  * @author thiago-amm
  * @version v1.0.0 04/09/2017
+ * @version v1.0.1 08/09/2017
  * @since v1.0.0
  */
 public final class ConfigParser {
@@ -62,6 +64,7 @@ public final class ConfigParser {
    private String line = "";
    private Map<String, Map<String, String>> sections;
    private static final Set<String> EMPTY_SECTIONS = new HashSet<>();
+   private Map<String, String> referencedKeys;
    private String currentSection = "";
    private boolean loaded = false;
    
@@ -432,6 +435,7 @@ public final class ConfigParser {
       try {
          sections = new HashMap<>();
          sections.put("", new HashMap<>());
+         referencedKeys = new HashMap<>();
          bufferedReader = new BufferedReader(new InputStreamReader(inputStream, "UTF-8"));
          while ((line = bufferedReader.readLine()) != null) {
             if (line.matches("^\\[\\w+]$")) {
@@ -445,14 +449,36 @@ public final class ConfigParser {
                } else if (line.matches("^.*=.*$")) {
                   String key = line.split("=")[0];
                   String value = line.split("=")[1];
-                  if (!currentSection.isEmpty()) {
-                     sections.get(currentSection).put(currentSection + "." + key, value);
-                     tempProperties.put(currentSection + "." + key, value);
-                  } else {
-                     sections.get("").put(key, value);
-                     tempProperties.put(key, value);
+                  key = currentSection.isEmpty() ? key : currentSection + "." + key;
+                  sections.get(currentSection).put(key, value);
+                  tempProperties.put(key, value);
+                  if (isReferencedKey(value)) {
+                     value = value.substring(value.indexOf("${") + 2, value.lastIndexOf("}"));
+                     referencedKeys.put(key, value);
                   }
                }
+            }
+         }
+         if (!referencedKeys.isEmpty()) {
+            String key = "";
+            String value = "";
+            String referencedKey = "";
+            String referencedValue = "";
+            for (Entry<String, String> entry : referencedKeys.entrySet()) {
+               key = entry.getKey();
+               referencedKey = entry.getValue();
+               value = tempProperties.getProperty(key);
+               referencedValue = tempProperties.getProperty(referencedKey);
+               // TODO - criar método recursivo.
+               if (isReferencedKey(referencedValue)) {
+                  referencedValue = referencedValue.substring(
+                     referencedValue.indexOf("${") + 2, 
+                     referencedValue.lastIndexOf("}")
+                  );
+                  referencedValue = tempProperties.getProperty(referencedValue);
+               }
+               value = value.replace(String.format("${%s}", referencedKey), referencedValue);
+               tempProperties.setProperty(key, value);
             }
          }
          writeTempFile();
@@ -461,6 +487,16 @@ public final class ConfigParser {
       } catch (IOException e) {
          e.printStackTrace();
       }
+   }
+   
+   private boolean isReferencedKey(String value) {
+      boolean isReferencedKey = false;
+      if (isNotNullOrEmpty(value)) {
+         if (value.matches("^\\$\\{.*\\}.*")) {
+            isReferencedKey = true;
+         }
+      }
+      return isReferencedKey;
    }
    
    private void createTempFile() {
